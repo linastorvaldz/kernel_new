@@ -775,13 +775,6 @@ KBUILD_CFLAGS	+= $(call cc-disable-warning, format-truncation)
 KBUILD_CFLAGS	+= $(call cc-disable-warning, format-overflow)
 KBUILD_CFLAGS	+= $(call cc-disable-warning, address-of-packed-member)
 
-ifeq ($(shell echo $(CONFIG_CC_VERSION_TEXT) | grep -qE 'Android|Neutron' && echo true || echo false),true)
-KBUILD_CFLAGS   += -mllvm -regalloc-enable-advisor=release
-endif
-
-#Enable hot cold split optimization
-KBUILD_CFLAGS   += -mllvm -hot-cold-split=true
-
 ifdef CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
 KBUILD_CFLAGS += -O2
 else ifdef CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3
@@ -851,6 +844,16 @@ KBUILD_CFLAGS += $(stackp-flags-y)
 
 KBUILD_CFLAGS-$(CONFIG_WERROR) += -Werror
 KBUILD_CFLAGS += $(KBUILD_CFLAGS-y)
+
+ifeq ($(shell echo $(CONFIG_CC_VERSION_TEXT) | grep -qE 'Android|Neutron' && echo true || echo false),true)
+# Enable MLGO optimizations for register allocation
+KBUILD_CFLAGS   += -mllvm -regalloc-enable-advisor=release
+KBUILD_LDFLAGS  += -mllvm -regalloc-enable-advisor=release
+KBUILD_LDFLAGS  += -mllvm -enable-ml-inliner=release
+endif
+
+# Enable hot cold split optimization
+KBUILD_CFLAGS   += -mllvm -hot-cold-split=true
 
 ifdef CONFIG_CC_IS_CLANG
 KBUILD_CPPFLAGS += -Qunused-arguments
@@ -1009,10 +1012,6 @@ endif
 
 # Limit inlining across translation units to reduce binary size
 KBUILD_LDFLAGS += -mllvm -import-instr-limit=5
-
-ifeq ($(shell echo "$CONFIG_CC_VERSION_TEXT" | grep -qE 'Android|Neutron'; echo $?),0)
-KBUILD_LDFLAGS += -mllvm -regalloc-enable-advisor=release
-endif
 endif
 
 ifdef CONFIG_LTO
