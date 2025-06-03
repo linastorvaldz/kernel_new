@@ -1052,7 +1052,9 @@ int sysctl_protected_regular __read_mostly;
 static inline int may_follow_link(struct nameidata *nd, const struct inode *inode)
 {
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	if (nd->inode && unlikely(nd->inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+	if (nd->inode &&
+		susfs_need_to_spoof_sus_path(nd->inode, from_kuid(current_user_ns(), nd->inode->i_uid)))
+	{
 		return -ENOENT;
 	}
 #endif
@@ -1132,7 +1134,9 @@ int may_linkat(struct path *link)
 	struct inode *inode = link->dentry->d_inode;
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	if (inode && unlikely(inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+	if (inode &&
+		susfs_need_to_spoof_sus_path(inode, from_kuid(current_user_ns(), inode->i_uid)))
+	{
 		return -ENOENT;
 	}
 #endif
@@ -1179,7 +1183,9 @@ static int may_create_in_sticky(umode_t dir_mode, kuid_t dir_uid,
 				struct inode * const inode)
 {
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	if (unlikely(inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+	if (inode &&
+		susfs_need_to_spoof_sus_path(inode, from_kuid(current_user_ns(), inode->i_uid)))
+	{
 		return -ENOENT;
 	}
 #endif
@@ -1565,7 +1571,9 @@ static struct dentry *__lookup_hash(const struct qstr *name,
 		dentry = old;
 	}
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	if (!IS_ERR(dentry) && dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+	if (!IS_ERR(dentry) && dentry->d_inode &&
+		susfs_need_to_spoof_sus_path(dentry->d_inode, from_kuid(current_user_ns(), dentry->d_inode->i_uid)))
+	{
 		dput(dentry);
 		return ERR_PTR(-ENOENT);
 	}
@@ -1672,7 +1680,9 @@ again:
 		}
 	}
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	if (!IS_ERR(dentry) && dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+	if (!IS_ERR(dentry) && dentry->d_inode &&
+		susfs_need_to_spoof_sus_path(dentry->d_inode, from_kuid(current_user_ns(), dentry->d_inode->i_uid)))
+	{
 		dput(dentry);
 		return ERR_PTR(-ENOENT);
 	}
@@ -2324,7 +2334,9 @@ OK:
 		}
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 		// we deal with sus sub path here
-		if (nd->inode && unlikely(nd->inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+		if (nd->inode &&
+			susfs_need_to_spoof_sus_path(nd->inode, from_kuid(current_user_ns(), nd->inode->i_uid)))
+{
 			return 0;
 		}
 #endif
@@ -2489,6 +2501,9 @@ int filename_lookup(int dfd, struct filename *name, unsigned flags,
 {
 	int retval;
 	struct nameidata nd;
+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
+	struct inode *inode;
+#endif
 	if (IS_ERR(name))
 		return PTR_ERR(name);
 	if (unlikely(root)) {
@@ -2508,7 +2523,10 @@ int filename_lookup(int dfd, struct filename *name, unsigned flags,
 	restore_nameidata();
 	putname(name);
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	if (!retval && path->dentry->d_inode && unlikely(path->dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+	inode = path->dentry->d_inode;
+	if (!retval && inode &&
+		susfs_need_to_spoof_sus_path(inode, from_kuid(current_user_ns(), inode->i_uid)))
+	{
 		return -ENOENT;
 	}
 #endif
@@ -2842,7 +2860,7 @@ static int may_delete(struct inode *dir, struct dentry *victim, bool isdir)
 		return -EPERM;
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	if (unlikely(inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+	if (susfs_need_to_spoof_sus_path(inode, from_kuid(current_user_ns(), inode->i_uid))) {
 		return -ENOENT;
 	}
 #endif
@@ -2882,7 +2900,9 @@ static inline int may_create(struct inode *dir, struct dentry *child)
 	struct user_namespace *s_user_ns;
 	audit_inode_child(dir, child, AUDIT_TYPE_CHILD_CREATE);
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	if (child->d_inode && unlikely(child->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+	if (child->d_inode &&
+		susfs_need_to_spoof_sus_path(child->d_inode, from_kuid(current_user_ns(), child->d_inode->i_uid)))
+	{
 		error = inode_permission(dir, MAY_WRITE | MAY_EXEC);
 		if (error) {
 			return error;
@@ -3055,7 +3075,7 @@ static int may_open(const struct path *path, int acc_mode, int flag)
 		return -ENOENT;
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	if (unlikely(inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+	if (susfs_need_to_spoof_sus_path(inode, from_kuid(current_user_ns(), dentry->d_inode->i_uid))) {
 		return -ENOENT;
 	}
 #endif
@@ -3142,7 +3162,9 @@ static int may_o_create(const struct path *dir, struct dentry *dentry, umode_t m
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	int error;
 
-	if (dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+	if (dentry->d_inode &&
+		susfs_need_to_spoof_sus_path(dentry->d_inode, from_kuid(current_user_ns(), dentry->d_inode->i_uid)))
+	{
 		error = inode_permission(dir->dentry->d_inode, MAY_WRITE | MAY_EXEC);
 		if (error) {
 			return error;
@@ -3274,7 +3296,8 @@ static struct dentry *lookup_open(struct nameidata *nd, struct file *file,
 	if (dentry->d_inode) {
 		/* Cached positive dentry: will open in f_op->open */
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-		if (unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+		if (susfs_need_to_spoof_sus_path(dentry->d_inode, from_kuid(current_user_ns(), dentry->d_inode->i_uid)))
+		{
 			dput(dentry);
 			return ERR_PTR(-ENOENT);
 		}
@@ -3309,7 +3332,9 @@ static struct dentry *lookup_open(struct nameidata *nd, struct file *file,
 		if (unlikely(create_error) && dentry == ERR_PTR(-ENOENT))
 			dentry = ERR_PTR(create_error);
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-		if (!IS_ERR(dentry) && dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+		if (!IS_ERR(dentry) && dentry->d_inode &&
+			susfs_need_to_spoof_sus_path(dentry->d_inode, from_kuid(current_user_ns(), dentry->d_inode->i_uid)))
+		{
 			if (create_error) {
 				dput(dentry);
 				return ERR_PTR(create_error);
@@ -3333,7 +3358,9 @@ static struct dentry *lookup_open(struct nameidata *nd, struct file *file,
 			dput(dentry);
 			dentry = res;
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-			if (dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+			if (dentry->d_inode &&
+				susfs_need_to_spoof_sus_path(dentry->d_inode, from_kuid(current_user_ns(), dentry->d_inode->i_uid)))
+			{
 				dput(dentry);
 				return ERR_PTR(-ENOENT);
 			}

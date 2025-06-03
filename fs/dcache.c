@@ -2319,9 +2319,11 @@ seqretry:
 				continue;
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-			if (dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
-				continue;
-			}
+		if (dentry->d_inode &&
+			susfs_need_to_spoof_sus_path(dentry->d_inode, from_kuid(current_user_ns(), dentry->d_inode->i_uid)))
+		{
+ 			continue;
+		}
 #endif
 		}
 		*seqp = seq;
@@ -2400,14 +2402,16 @@ struct dentry *__d_lookup(const struct dentry *parent, const struct qstr *name)
 	 * See Documentation/filesystems/path-lookup.txt for more details.
 	 */
 	rcu_read_lock();
-	
+
 	hlist_bl_for_each_entry_rcu(dentry, node, b, d_hash) {
 
 		if (dentry->d_name.hash != hash)
 			continue;
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-		if (dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
+		if (dentry->d_inode &&
+			susfs_need_to_spoof_sus_path(dentry->d_inode, from_kuid(current_user_ns(), dentry->d_inode->i_uid)))
+		{
 			continue;
 		}
 #endif
